@@ -9,8 +9,8 @@ export class FindHotelPage extends BasePage {
   }
 
   async open(): Promise<void> {
-    await this.prepareSite();
     await this.page.goto(ASSESSMENT.directoryPath, { waitUntil: 'domcontentloaded' });
+    await this.prepareSite();
     await this.assertNotBlocked();
     await expect(this.page.getByRole('heading', { name: /all hotels (&|and) resorts/i })).toBeVisible();
   }
