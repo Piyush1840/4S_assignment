@@ -12,28 +12,60 @@ export class FindHotelPage extends BasePage {
     await this.page.goto(ASSESSMENT.directoryPath, { waitUntil: 'domcontentloaded' });
     await this.prepareSite();
     await this.assertNotBlocked();
-    await expect(this.page.getByRole('heading', { name: /all hotels (&|and) resorts/i })).toBeVisible();
+    await expect(
+      this.page.getByRole('heading', { name: /all hotels (&|and) resorts/i }),
+    ).toBeVisible();
   }
 
   async selectProperty(property: Property): Promise<void> {
     await this.prepareSite();
 
-    // The directory renders the same property in several category sections. Resolve only a currently
-    // visible copy, then invoke that exact anchor in the same DOM turn so a category re-render cannot
-    // switch Playwright to a hidden duplicate between actionability checks and the click.
-    const visiblePropertyLink = this.page
-      .locator(`a[href="/${property.slug}/"]`)
-      .filter({
-        hasText: new RegExp(`^\\s*${escapeRegExp(property.listingName)}\\s*$`, 'i'),
-        visible: true,
-      })
+    const regionName = new RegExp(`^${escapeRegExp(property.region)}\\b`, 'i');
+    const regionToggle = this.page
+      .getByRole('button', { name: regionName })
+      .filter({ visible: true })
       .first();
 
     await expect(
-      visiblePropertyLink,
-      `${property.listingName} should be visible in the ${property.region} property list`,
+      regionToggle,
+      `The visible ${property.region} property group should be available`,
     ).toBeVisible();
-    await visiblePropertyLink.evaluate((link: HTMLAnchorElement) => link.click());
+
+    const controlledRegionId = await regionToggle.getAttribute('aria-controls');
+    if (!controlledRegionId) {
+      throw new Error(
+        `The visible ${property.region} property-group button does not expose aria-controls`,
+      );
+    }
+
+    const escapedRegionId = controlledRegionId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const regionPanel = this.page.locator(`[id="${escapedRegionId}"]`);
+
+    const propertyLink = regionPanel
+      .locator(`a[href="/${property.slug}/"]`)
+      .filter({
+        hasText: new RegExp(`^\\s*${escapeRegExp(property.listingName)}\\s*$`, 'i'),
+      })
+      .first();
+
+    if (!(await propertyLink.isVisible())) {
+      const expanded = await regionToggle.getAttribute('aria-expanded');
+      if (expanded !== 'true') {
+        await regionToggle.click();
+      }
+    }
+
+    await expect(
+      regionPanel,
+      `The ${property.region} property group should be expanded`,
+    ).toBeVisible();
+
+    await expect(
+      propertyLink,
+      `${property.listingName} should be visible inside the ${property.region} property group`,
+    ).toBeVisible();
+
+    await propertyLink.click();
 
     await expect(this.page).toHaveURL(propertyHomeUrl(property));
     await this.assertNotBlocked();
