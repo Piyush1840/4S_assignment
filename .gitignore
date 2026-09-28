@@ -1,0 +1,13 @@
+node_modules/
+playwright-report/
+test-results/
+blob-report/
+dist/
+*.log
+.DS_Store
+
+# Keep only the successful assessment recording created intentionally by npm run record.
+recordings/*.webm
+recordings/*.json
+!recordings/cabo-del-sol-booking-flow.webm
+!recordings/cabo-del-sol-booking-flow.json

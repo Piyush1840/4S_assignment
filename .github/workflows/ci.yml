@@ -1,0 +1,52 @@
+name: QA Automation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 11 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Typecheck · lint · format · unit
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-audit --no-fund
+      - run: npm run verify
+
+  live-e2e:
+    name: Scheduled/manual live assessment flow
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.RUN_LIVE_E2E == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Run assessment flow headed under Xvfb
+        run: xvfb-run --auto-servernum -- npm run test:e2e
+        env:
+          BASE_URL: https://www.fourseasons.com
+      - name: Upload Playwright evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
