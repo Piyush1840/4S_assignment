@@ -11,14 +11,12 @@ const MAX_EXTRA_NIGHTS = 7;
 export class PropertyPage extends BasePage {
   private readonly bookingForm: Locator;
   private readonly dateField: Locator;
-  private readonly calendar: Locator;
   private readonly nextMonthButton: Locator;
 
   constructor(page: Page) {
     super(page);
     this.bookingForm = page.getByRole('form', { name: 'Check Rates and Availability' });
     this.dateField = this.bookingForm.getByRole('button', { name: /select(ed)? dates/i });
-    this.calendar = this.bookingForm.getByRole('application', { name: 'Calendar Stay Dates' });
     this.nextMonthButton = this.bookingForm.getByRole('button', { name: 'Next month', exact: true });
   }
 
@@ -31,7 +29,14 @@ export class PropertyPage extends BasePage {
   async checkRates(request: StayRequest): Promise<StayDates> {
     await this.prepareSite();
     await this.dateField.click();
-    await expect(this.calendar).toBeVisible();
+
+    // The live booking widget no longer exposes a stable
+    // role="application" / "Calendar Stay Dates" container in every render.
+    // Wait for a control that proves the date picker itself is open instead.
+    await expect(
+      this.nextMonthButton,
+      'The stay-date picker should open after clicking the date field',
+    ).toBeVisible();
 
     const checkIn = await this.findFirstSelectableDate(
       request.earliestCheckIn,
@@ -55,7 +60,7 @@ export class PropertyPage extends BasePage {
   }
 
   private dayButton(date: Date): Locator {
-    return this.calendar.getByRole('button', {
+    return this.bookingForm.getByRole('button', {
       name: new RegExp(`${escapeRegExp(formatLongDate(date))}$`, 'i'),
     });
   }
@@ -80,14 +85,15 @@ export class PropertyPage extends BasePage {
     for (let turn = 0; turn <= MAX_MONTHS_TO_PAGE; turn += 1) {
       if ((await this.dayButton(date).count()) > 0) return;
 
-      const before = await this.calendar
+      const before = await this.bookingForm
         .locator('button[aria-label]')
         .evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')).join('|'));
 
       await this.nextMonthButton.click();
+
       await expect
         .poll(() =>
-          this.calendar
+          this.bookingForm
             .locator('button[aria-label]')
             .evaluateAll((buttons) =>
               buttons.map((button) => button.getAttribute('aria-label')).join('|'),
