@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { copyFile, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
 
 const root = process.cwd();
@@ -8,6 +9,8 @@ const resultsDir = join(root, 'test-results');
 const recordingsDir = join(root, 'recordings');
 const outputVideo = join(recordingsDir, 'cabo-del-sol-booking-flow.webm');
 const outputMetadata = join(recordingsDir, 'cabo-del-sol-booking-flow.json');
+const require = createRequire(import.meta.url);
+const playwrightCli = require.resolve('@playwright/test/cli');
 
 async function findFiles(directory, extension) {
   const matches = [];
@@ -31,12 +34,11 @@ await mkdir(recordingsDir, { recursive: true });
 await rm(outputVideo, { force: true });
 await rm(outputMetadata, { force: true });
 
-const executable = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const startedAt = new Date();
 const exitCode = await new Promise((resolve, reject) => {
   const child = spawn(
-    executable,
-    ['playwright', 'test', 'tests/booking.spec.ts', '--project=e2e', '--workers=1'],
+    process.execPath,
+    [playwrightCli, 'test', 'tests/booking.spec.ts', '--project=e2e', '--workers=1'],
     {
       cwd: root,
       env: { ...process.env, RECORD_MODE: 'true' },
@@ -44,6 +46,7 @@ const exitCode = await new Promise((resolve, reject) => {
       shell: false,
     },
   );
+
   child.once('error', reject);
   child.once('close', (code) => resolve(code ?? 1));
 });
